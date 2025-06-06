@@ -82,7 +82,8 @@ module cache(
     hit_nxt = 0;
     miss_nxt = 0;
     dirty_evicted_nxt = 0;
-    read_data = 0;
+
+    if (waiting_for_ram) read_data = 0;
 
     if((read || write) && ~waiting_for_ram) begin // if theres a request and we aren't waiting for ram, just process the request
 
@@ -103,7 +104,7 @@ module cache(
       end // update all lru's in the current set
       lru[hit_way][index] = 0;
       if (write) begin
-          data[hit_way][index][63:0] = write_data;
+          data[hit_way][index] = write_data;
           dirty[hit_way][index] = 1; // mark dirty
       end
 
@@ -136,9 +137,6 @@ module cache(
               lru[w][index] = lru[w][index] + 1;
       end // update all lru's in the current set
       lru[lru_way][index] = 0;
-
-      if (read)
-          read_data = data[lru_way][index];
       end
 
     end
@@ -147,7 +145,8 @@ module cache(
       tags[lru_way][index]         <= tag;            // update tag
       valid[lru_way][index]        <= 1;              // mark as valid
       dirty[lru_way][index]        <= 0;              // it's clean (just loaded)
-      waiting_for_ram_nxt = 0;
+      read_data = data[lru_way][index];
+      waiting_for_ram_nxt =  0;
     end
 end
 

@@ -20,6 +20,7 @@ add wave sim:/top_level_tb/dut/fake_ram/delay_counter
 add wave sim:/top_level_tb/dut/fake_ram/req
 add wave sim:/top_level_tb/dut/cache_inst/waiting_for_ram
 add wave sim:/top_level_tb/dut/cache_inst/ram_ready
+add wave sim:/top_level_tb/dut/cache_inst/read_data
 add wave *
 
 radix hex

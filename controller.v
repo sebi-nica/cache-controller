@@ -85,7 +85,6 @@ module controller(
     end
 
     HANDLE_HIT: begin
-      cpu_read_data = cache_read_data;
       next_state = FINISH;
     end
 
@@ -124,7 +123,6 @@ module controller(
       ram_req     = 1;
 
       if (ram_ready) begin
-        cpu_read_data = cache_read_data;
         ram_req     = 0;
         next_state = FINISH;
       end
@@ -134,6 +132,7 @@ module controller(
       done       = 1;
       ram_req = 0;
       next_state = IDLE;
+      cpu_read_data = cache_read_data;
     end
   endcase
 end

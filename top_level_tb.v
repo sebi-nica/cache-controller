@@ -58,32 +58,32 @@ module top_level_tb;
   end
 endtask
 
-task automatic run_random_accesses;
-  input integer num_accesses;
-  input integer write_percentage;
+task automatic run_random_accesses; // as using the entire 32-bit address would be like having a 4GiB RAM (massive compared to the size of the cache)
+  input integer num_accesses;       // this task rarely hits
+  input integer write_percentage;   // I simulated 4.000.000 requests and got 245 hits. that's a MR of 99.993875 %
   begin
     miss_count = 0;
     hit_count = 0;
     for (i = 0; i < num_accesses; i = i + 1) begin
-      do_single_access($random, ($random % 100) < write_percentage); // 30% writes
+      do_single_access($random, ($random % 100) < write_percentage);
     end
 
     $display("hits: %d", num_accesses - miss_count);
   end
 endtask
 
-task automatic run_locality_access;
+task automatic run_locality_access; // this task simulates a smaller RAM by restricting the range of the address 
   input integer num_accesses;
-  input integer region_size; // in bytes 
+  input integer region_size; // this restricts the number of bytes of fake "capacity" that the fake "RAM" has
+  input write_percentage; // variable amount of reads/writes
   integer base_addr;
-  integer hit_count;
   begin
     miss_count = 0;
     hit_count = 0;
     base_addr = 32'h10000000; // arbitrary base
 
     for (i = 0; i < num_accesses; i = i + 1) begin
-      do_single_access(base_addr + ($random % region_size), 0); // all reads
+      do_single_access(base_addr + ($random % region_size), ($random % 100) < write_percentage);
     end
 
     hit_count = num_accesses - miss_count;
@@ -113,7 +113,7 @@ endtask
     rst = 0;
 
     #10;
-    run_locality_access(10000, 64000);
+    run_locality_access(5000, 64000, 30);
     #20;
 
     $stop;
