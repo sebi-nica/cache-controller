@@ -16,7 +16,7 @@ The design is modular, with clear separation between:
 
 ## Diagram
 
-![Cache Structure Diagram](block_diagram.png)
+![Cache Structure Diagram](images/block_diagram.png)
 
 ## Performance Analysis
 
