@@ -12,7 +12,7 @@ module top_level_tb;
   wire done_signal;
 
   reg [31:0] miss_count, hit_count;
-  integer i, j;
+  
 
   top_level dut (
     .clk(clk),
@@ -29,13 +29,16 @@ module top_level_tb;
 
   always #5 clk = ~clk;
 
-  task automatic do_single_access;
+  task automatic do_single_access; // request something from the cache on a random address
   input [31:0] addr;
-  input is_write;
+  input is_write; // done like this to make it easier to randomly decide whether an access is a write or a read
+    integer i;
   begin
     cpu_address = addr;
-    for (j = 0; j < 16; j = j + 1) begin
-      cpu_write_data[j*32 +: 32] = $random;
+
+
+    for (i = 0; i < 16; i = i + 1) begin
+      cpu_write_data[i*32 +: 32] = $random;
     end
     cpu_read = 0;
     cpu_write = 0;
@@ -61,9 +64,12 @@ endtask
 task automatic run_random_accesses; // as using the entire 32-bit address would be like having a 4GiB RAM (massive compared to the size of the cache)
   input integer num_accesses;       // this task rarely hits
   input integer write_percentage;   // I simulated 4.000.000 requests and got 245 hits. that's a MR of 99.993875 %
+  integer i;
   begin
     miss_count = 0;
     hit_count = 0;
+
+
     for (i = 0; i < num_accesses; i = i + 1) begin
       do_single_access($random, ($random % 100) < write_percentage);
     end
@@ -75,12 +81,15 @@ endtask
 task automatic run_locality_access; // this task simulates a smaller RAM by restricting the range of the address 
   input integer num_accesses;
   input integer region_size; // this restricts the number of bytes of fake "capacity" that the fake "RAM" has
-  input write_percentage; // variable amount of reads/writes
+  input integer write_percentage; // variable amount of reads/writes
   integer base_addr;
+  integer i;
   begin
     miss_count = 0;
     hit_count = 0;
-    base_addr = 32'h10000000; // arbitrary base
+    base_addr = 32'h10000000;
+
+    
 
     for (i = 0; i < num_accesses; i = i + 1) begin
       do_single_access(base_addr + ($random % region_size), ($random % 100) < write_percentage);
@@ -113,7 +122,7 @@ endtask
     rst = 0;
 
     #10;
-    run_locality_access(5000, 64000, 30);
+    run_locality_access(100000, 64000, 30);
     #20;
 
     $stop;

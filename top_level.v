@@ -9,9 +9,8 @@ module top_level(
     output cache_hit,
     output cache_miss,
     output done_signal
-);
+); // just connecting everything together
 
-  // Signals between Controller and Cache
   wire        cache_read, cache_write;
   wire [31:0] cache_address;
   wire [511:0] cache_write_data;
@@ -21,13 +20,11 @@ module top_level(
   wire [31:0] cache_ram_address;
   wire [31:0] evicted_address;
 
-  // Signals between Cache and RAM
   wire        ram_ready;
   wire [511:0] ram_data;
   wire        ram_req;
   wire [31:0] ram_address;
 
-  // Controller
   controller ctrl (
     .clk(clk),
     .rst(rst),
@@ -57,7 +54,6 @@ module top_level(
     .done(done_signal) // outputs
   );
 
-  // Cache
   cache cache_inst (
     .clk(clk),
     .rst(rst),
@@ -77,7 +73,6 @@ module top_level(
     .evicted_address(evicted_address) // data to controller
   );
 
-  // RAM
   ram fake_ram (
     .clk(clk),
     .rst(rst),

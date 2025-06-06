@@ -1,18 +1,22 @@
 module ram (
     input clk,
     input rst,
-    input req, // 
+    input req,
     input [31:0] address,
-    output reg [511:0] data_out, // 64 bytes = 512 bits
+    output reg [511:0] data_out,
     output reg ready
 );
+
+// this module just generates 64 bytes of random data whenever 'req' is on
+// it also pretends to take 100 clock cycles to do so
+
+
 
     localparam DELAY_CYCLES = 100;
 
     reg [7:0] delay_counter;
     reg busy;
 
-    // Simple PRNG for simulation (LFSR-like)
     function [511:0] generate_random_data(input [31:0] seed);
         integer k;
         begin

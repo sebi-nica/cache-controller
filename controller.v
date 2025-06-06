@@ -25,7 +25,6 @@ module controller(
     output reg done
 );
 
-  // State encoding
   localparam IDLE            = 3'b000; // 0
   localparam CHECK_CACHE     = 3'b001; // 1
   localparam HANDLE_HIT      = 3'b010; // 2
@@ -34,11 +33,9 @@ module controller(
   localparam WAITING_FOR_RAM = 3'b101; // 5
   localparam FINISH          = 3'b110; // 6
 
-  // Current and next state registers
   reg [2:0] state, next_state;
 
 
-  // FSM state transitions
   always @(posedge clk or posedge rst) begin
     if (rst) begin
       state <= IDLE;
@@ -47,22 +44,19 @@ module controller(
     end
   end
 
-  // FSM next state logic and control signals
   always @(*) begin
-  // Default all outputs (clean slate)
   cache_address     = 0;
   cache_write_data  = 0;
-  cache_read        = 0;
+  cache_read        = 0; // default all just in case
   cache_write       = 0;
   ram_address       = 0;
   ram_req           = 0;
   cpu_read_data     = 0;
   done              = 0;
-
-  next_state = state; // default: hold current state
+  next_state = state;
 
   case (state)
-    IDLE: begin
+    IDLE: begin // wait for instructions from CPU and, when receiving said instructions, pass them to the cache
       if (read_req || write_req) begin
         cache_address    = cpu_address;
         cache_write_data = cpu_write_data;
@@ -72,7 +66,7 @@ module controller(
       end
     end
 
-    CHECK_CACHE: begin // wait for cache to finish
+    CHECK_CACHE: begin // hit or miss
       cache_address    = cpu_address;
       cache_write_data = cpu_write_data;
       cache_read       = read_req;
@@ -88,14 +82,14 @@ module controller(
       next_state = FINISH;
     end
 
-    HANDLE_MISS: begin
+    HANDLE_MISS: begin 
       cache_address    = cpu_address;
       cache_write_data = cpu_write_data;
       cache_read       = read_req;
       cache_write      = write_req;
 
       if (dirty_evicted)
-        next_state = WRITE_BACK;
+        next_state = WRITE_BACK; // in case something dirty got evicted, the "RAM" should simulate another costly memory access to write-back
       else
         next_state = WAITING_FOR_RAM;
     end
@@ -109,7 +103,7 @@ module controller(
       ram_address = evicted_address;
       ram_req     = 1;
 
-      if (ram_ready)
+      if (ram_ready) // wait for ram, then go wait again
         next_state = WAITING_FOR_RAM;
     end
 
@@ -122,7 +116,7 @@ module controller(
       ram_address = cpu_address;
       ram_req     = 1;
 
-      if (ram_ready) begin
+      if (ram_ready) begin // waiting for the RAM to send new data to cache
         ram_req     = 0;
         next_state = FINISH;
       end
@@ -131,7 +125,7 @@ module controller(
     FINISH: begin
       done       = 1;
       ram_req = 0;
-      next_state = IDLE;
+      next_state = IDLE; // send data to CPU and everything is done
       cpu_read_data = cache_read_data;
     end
   endcase

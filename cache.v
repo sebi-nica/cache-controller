@@ -17,22 +17,22 @@ module cache(
     output reg hit,
     output reg miss,
     output reg dirty_evicted,
-    output reg [31:0] evicted_address
+    output reg [31:0] evicted_address // this data is sent to the controller
 );
 
   localparam BLOCK_SIZE = 64; // in bytes
   localparam SETS = 128;      // number of sets
-  localparam WAYS = 4;        // 4-way set associative
-  localparam TAG_SIZE = 19;   // from 32-bit address: 19 tag, 7 index, 6 offset
+  localparam WAYS = 4;        // 4-way SA
+  localparam TAG_SIZE = 19;   // 19 tag, 7 index, 6 offset
 
-  // Address breakdown - this is the address to be searched for
+  // break down the address for easier access
   wire [5:0] offset = address[5:0];         // block offset
   wire [6:0] index  = address[12:6];        // set index (determines which set)
   wire [18:0] tag   = address[31:13];       // tag
 
-  // Per-way arrays for tags, data, valid and dirty bits, and LRU
-  reg [18:0] tags     [0:3][0:127]; // TAG for each BLOCK
-  reg [511:0] data [0:1][0:127]; // DATA of each block 
+  
+  reg [18:0] tags     [0:3][0:127]; // tag
+  reg [511:0] data [0:1][0:127]; // the actual data in the cache (a block)
   reg valid            [0:3][0:127]; // valid bit
   reg dirty            [0:3][0:127]; // dirty bit
   reg [1:0] lru        [0:3][0:127]; // counter that holds the 'age' of each block in the cache
@@ -46,8 +46,8 @@ module cache(
       data[w][i]  = 0;
       valid[w][i] = 0;
       dirty[w][i] = 0;
-      lru[w][i]   = w;
-    end
+      lru[w][i]   = w; // make sure all the blocks in every set have different ages
+    end // make sure everything is 0'd out before starting
   end
 
 
@@ -76,14 +76,14 @@ module cache(
 
 
 
-  // Cache lookup logic
+  // cache lookup logic
   always @(*) begin
     hit_found = 0;
     hit_nxt = 0;
     miss_nxt = 0;
     dirty_evicted_nxt = 0;
 
-    if (waiting_for_ram) read_data = 0;
+    if (waiting_for_ram) read_data = 0; // avoiding undefined behavior
 
     if((read || write) && ~waiting_for_ram) begin // if theres a request and we aren't waiting for ram, just process the request
 
@@ -94,21 +94,21 @@ module cache(
         end
       end
 
-      if (hit_found) begin // we got a hit
+      if (hit_found) begin // -------- HIT ---------
       hit_nxt = 1;
       read_data = data[hit_way][index];
 
       for (w = 0; w < WAYS; w = w + 1) begin
           if (lru[w][index] < lru[hit_way][index])
           lru[w][index] = lru[w][index] + 1;
-      end // update all lru's in the current set
+      end // update all lru's in the current set (they are still all different)
       lru[hit_way][index] = 0;
       if (write) begin
           data[hit_way][index] = write_data;
           dirty[hit_way][index] = 1; // mark dirty
       end
 
-      end else begin // we got a miss
+      end else begin // -------- MISS ---------
       miss_nxt = 1;
 
       // find way to replace data with
@@ -116,14 +116,14 @@ module cache(
       for (w = 0; w < WAYS; w = w + 1) begin
           if (lru[w][index] == WAYS-1) begin
           lru_way = w;
-          end
+          end // the oldest block in the set will always have age=3
       end
 
-      // If the block is dirty, set dirty_evicted so the controller knows to replace it in ram
+      
       if (dirty[lru_way][index]) begin
           dirty_evicted_nxt = 1;
           evicted_address = {tags[lru_way][index], index, 6'b0};
-      end
+      end // if the block is dirty, set dirty_evicted so the controller knows to replace it in ram
 
       // request new data from RAM
       tags[lru_way][index] = tag;
@@ -136,7 +136,7 @@ module cache(
           if (lru[w][index] < lru[lru_way][index])
               lru[w][index] = lru[w][index] + 1;
       end // update all lru's in the current set
-      lru[lru_way][index] = 0;
+      lru[lru_way][index] = 0; // this block was just accesed so age=0
       end
 
     end
