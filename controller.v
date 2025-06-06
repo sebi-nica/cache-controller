@@ -8,12 +8,11 @@ module controller(
 
     input cache_hit,
     input cache_miss,
-    input dirty_evicted,
+    input dirty_evicted, // on when there is need for write-back
     input [63:0] cache_read_data,
-    input [31:0] evicted_address,
+    input [31:0] evicted_address, // address for write-back
 
     input ram_ready,
-    input [63:0] ram_in,
 
     output reg [31:0] cache_address,
     output reg [63:0] cache_write_data,
@@ -26,12 +25,18 @@ module controller(
     output reg done
 );
 
-  typedef enum logic [2:0] {
-    IDLE, CHECK_CACHE, HANDLE_HIT, HANDLE_MISS,
-    WRITE_BACK, WAITING_FOR_RAM, FINISH
-  } state_t;
+  // State encoding
+  localparam IDLE            = 3'b000;
+  localparam CHECK_CACHE     = 3'b001;
+  localparam HANDLE_HIT      = 3'b010;
+  localparam HANDLE_MISS     = 3'b011;
+  localparam WRITE_BACK      = 3'b100;
+  localparam WAITING_FOR_RAM = 3'b101;
+  localparam FINISH          = 3'b110;
 
-  state_t state, next_state;
+  // Current and next state registers
+  reg [2:0] state, next_state;
+
 
   // FSM state transitions
   always @(posedge clk or posedge rst) begin
@@ -82,28 +87,27 @@ module controller(
       end
 
       HANDLE_MISS: begin
-        if (dirty_evicted) begin
-          ram_address = evicted_address;
-          ram_req = 1;
+        if (dirty_evicted) begin // tell the ram to pretend to write the data 
           next_state = WRITE_BACK;
-        end else begin
-          ram_address = cpu_address;
-          ram_req = 1;
+        end else begin // tell the ram to pretend to retreive the data
           next_state = WAITING_FOR_RAM;
         end
+        ram_address = cpu_address;
+        ram_req = 1;
       end
 
       WRITE_BACK: begin
-        if (ram_ready) begin
-          ram_address = cpu_address;
-          ram_req = 1;
+        if (ram_ready) begin // in this case, the ram needs to do 2 operations, write-back AND the original data retrieval because of the MISS
+          ram_address = evicted_address;
           next_state = WAITING_FOR_RAM;
         end
       end
 
       WAITING_FOR_RAM: begin
-        if (ram_ready)
+        if (ram_ready) begin
           next_state = FINISH;
+          ram_req = 0; // only now the ram can stop
+        end
       end
 
       FINISH: begin

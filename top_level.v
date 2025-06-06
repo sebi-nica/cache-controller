@@ -29,34 +29,50 @@ module top_level(
   controller ctrl (
     .clk(clk),
     .rst(rst),
-    .cpu_read(cpu_read),
-    .cpu_write(cpu_write),
+
+    .read_req(cpu_read),
+    .write_req(cpu_write),
     .cpu_address(cpu_address),
-    .cpu_write_data(cpu_write_data),
-    .cache_read(cache_read),
-    .cache_write(cache_write),
+    .cpu_write_data(cpu_write_data), // these 4 are from CPU
+
+    .cache_hit(cache_hit),
+    .cache_miss(cache_miss),
+    .dirty_evicted(dirty_evicted),
+    .cache_read_data(cache_read_data),
+    .evicted_address(evicted_address), // data from cache
+
+    .ram_ready(ram_ready), // 
+
     .cache_address(cache_address),
     .cache_write_data(cache_write_data),
-    .cache_read_data(cache_read_data),
-    .cache_hit(cache_hit),
-    .cache_miss(cache_miss)
+    .cache_read(cache_read),
+    .cache_write(cache_write), // instructions to cache
+
+    .ram_address(ram_address),
+    .ram_req(ram_request), // instructions to RAM
+
+    .cpu_read_data(cpu_read_data),
+    .done(done_signal) // outputs
   );
 
   // Cache
   cache cache_inst (
     .clk(clk),
     .rst(rst),
-    .read(cache_read),
-    .write(cache_write),
+
     .address(cache_address),
     .write_data(cache_write_data),
+    .read(cache_read),
+    .write(cache_write), // instructions from controller
+
+    .ram_ready(ram_ready),
+    .ram_in(ram_data), // return from RAM
+
     .read_data(cache_read_data),
     .hit(cache_hit),
     .miss(cache_miss),
-    .ram_ready(ram_ready),
-    .ram_in(ram_data_out),
-    .ram_req(ram_req),
-    .ram_address(ram_address)
+    .dirty_evicted(dirty_evicted),
+    .evicted_address(evicted_address) // data to controller
   );
 
   // RAM
@@ -65,7 +81,7 @@ module top_level(
     .rst(rst),
     .req(ram_req),
     .address(ram_address),
-    .data_out(ram_data_out),
+    .data_out(ram_data),
     .ready(ram_ready)
   );
 
