@@ -6,14 +6,14 @@ module cache(
     input rst,
 
     input [31:0] address,
-    input [63:0] write_data,
+    input [511:0] write_data,
     input read,
     input write,
 
     input        ram_ready,       // signal: RAM says "your data is ready"
     input [511:0] ram_in,          // 64-bit data from RAM
 
-    output reg [63:0] read_data,
+    output reg [511:0] read_data,
     output reg hit,
     output reg miss,
     output reg dirty_evicted,
@@ -27,15 +27,15 @@ module cache(
 
   // Address breakdown - this is the address to be searched for
   wire [5:0] offset = address[5:0];         // block offset
-  wire [6:0] index  = address[12:6];        // set index
+  wire [6:0] index  = address[12:6];        // set index (determines which set)
   wire [18:0] tag   = address[31:13];       // tag
 
   // Per-way arrays for tags, data, valid and dirty bits, and LRU
-  reg [18:0] tags     [0:WAYS-1][0:SETS-1]; // TAG for each BLOCK
-  reg [BLOCK_SIZE*8-1:0] data [0:WAYS-1][0:SETS-1]; // DATA of each block 
-  reg valid            [0:WAYS-1][0:SETS-1]; // valid bit
-  reg dirty            [0:WAYS-1][0:SETS-1]; // dirty bit
-  reg [1:0] lru        [0:WAYS-1][0:SETS-1]; // counter that holds the 'age' of each block in the cache
+  reg [18:0] tags     [0:3][0:127]; // TAG for each BLOCK
+  reg [511:0] data [0:1][0:127]; // DATA of each block 
+  reg valid            [0:3][0:127]; // valid bit
+  reg dirty            [0:3][0:127]; // dirty bit
+  reg [1:0] lru        [0:3][0:127]; // counter that holds the 'age' of each block in the cache
 
   integer i, w;
 
@@ -51,36 +51,40 @@ module cache(
   end
 
 
-
-  // On reset, clear cache metadata
-  always @(posedge clk or posedge rst) begin
-    if (rst) begin
-      for (w = 0; w < WAYS; w = w + 1) begin
-        for (i = 0; i < SETS; i = i + 1) begin
-          valid[w][i] <= 0;
-          dirty[w][i] <= 0;
-          lru[w][i]   <= w;
-          data[w][i] <= 0;
-        end
-      end
-    end
-  end
-
   reg [1:0] hit_way;
   reg hit_found;
   reg waiting_for_ram;
   reg [1:0] lru_way;
 
+  reg hit_nxt, miss_nxt, dirty_evicted_nxt, waiting_for_ram_nxt;
+
+  always @(posedge clk or posedge rst) begin
+    if (rst) begin
+      hit <= 0;
+      miss <= 0;
+      hit_nxt <= 0;
+      miss_nxt <= 0;
+      dirty_evicted_nxt <= 0;
+      waiting_for_ram_nxt <= 0;
+    end else begin
+      hit <= hit_nxt;
+      miss <= miss_nxt;
+      dirty_evicted <= dirty_evicted_nxt;
+      waiting_for_ram <= waiting_for_ram_nxt;
+    end
+  end
+
+
 
   // Cache lookup logic
   always @(*) begin
     hit_found = 0;
-    hit = 0;
-    miss = 0;
-    dirty_evicted = 0;
-    read_data = 64'b0;
+    hit_nxt = 0;
+    miss_nxt = 0;
+    dirty_evicted_nxt = 0;
+    read_data = 0;
 
-    if(read || write) begin
+    if((read || write) && ~waiting_for_ram) begin // if theres a request and we aren't waiting for ram, just process the request
 
       for (w = 0; w < WAYS; w = w + 1) begin // find the right way (if there is one)
           if (valid[w][index] && tags[w][index] == tag) begin
@@ -90,8 +94,8 @@ module cache(
       end
 
       if (hit_found) begin // we got a hit
-      hit = 1;
-      read_data = data[hit_way][index][63:0];
+      hit_nxt = 1;
+      read_data = data[hit_way][index];
 
       for (w = 0; w < WAYS; w = w + 1) begin
           if (lru[w][index] < lru[hit_way][index])
@@ -104,7 +108,7 @@ module cache(
       end
 
       end else begin // we got a miss
-      miss = 1;
+      miss_nxt = 1;
 
       // find way to replace data with
       
@@ -114,9 +118,9 @@ module cache(
           end
       end
 
-      // If the block is dirty, set dirty_evicted so the 
+      // If the block is dirty, set dirty_evicted so the controller knows to replace it in ram
       if (dirty[lru_way][index]) begin
-          dirty_evicted = 1;
+          dirty_evicted_nxt = 1;
           evicted_address = {tags[lru_way][index], index, 6'b0};
       end
 
@@ -124,7 +128,7 @@ module cache(
       tags[lru_way][index] = tag;
       valid[lru_way][index] = 1;
       dirty[lru_way][index] = write;
-      waiting_for_ram = 1;
+      waiting_for_ram_nxt = 1;
 
 
       for (w = 0; w < WAYS; w = w + 1) begin
@@ -134,21 +138,20 @@ module cache(
       lru[lru_way][index] = 0;
 
       if (read)
-          read_data = data[lru_way][index][63:0];
+          read_data = data[lru_way][index];
       end
 
     end
-end
-
-always @(*) begin // waiting for RAM. when ready, 
-    if (waiting_for_ram && ram_ready) begin
-        data[lru_way][index]         <= ram_in;         // store data from RAM
-        tags[lru_way][index]         <= tag;            // update tag
-        valid[lru_way][index]        <= 1;              // mark as valid
-        dirty[lru_way][index]        <= 0;              // it's clean (just loaded)
-        waiting_for_ram              <= 0;              // done waiting   
+    if (waiting_for_ram && ram_ready) begin // if the ram request is ready
+      data[lru_way][index]         <= ram_in;         // store data from RAM
+      tags[lru_way][index]         <= tag;            // update tag
+      valid[lru_way][index]        <= 1;              // mark as valid
+      dirty[lru_way][index]        <= 0;              // it's clean (just loaded)
+      waiting_for_ram_nxt = 0;
     end
 end
+
+
 
 
 endmodule

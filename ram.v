@@ -9,7 +9,7 @@ module ram (
 
     localparam DELAY_CYCLES = 100;
 
-    reg [6:0] delay_counter;
+    reg [7:0] delay_counter;
     reg busy;
 
     // Simple PRNG for simulation (LFSR-like)
@@ -25,7 +25,7 @@ module ram (
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             ready <= 0;
-            delay_counter <= 0;
+            delay_counter <= DELAY_CYCLES;
             busy <= 0;
         end else begin
             if (req && !busy) begin
@@ -36,7 +36,7 @@ module ram (
                 if (delay_counter > 0) begin
                     delay_counter <= delay_counter - 1;
                 end else begin
-                    data_out <= generate_random_data(address);
+                    data_out <= generate_random_data(address); // use the address as seed because why not
                     ready <= 1;
                     busy <= 0;
                 end

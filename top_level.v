@@ -4,24 +4,26 @@ module top_level(
     input cpu_read,
     input cpu_write,
     input [31:0] cpu_address,
-    input [63:0] cpu_write_data,
-    output [63:0] cpu_read_data,
+    input [511:0] cpu_write_data,
+    output [511:0] cpu_read_data,
     output cache_hit,
-    output cache_miss
+    output cache_miss,
+    output done_signal
 );
 
   // Signals between Controller and Cache
   wire        cache_read, cache_write;
   wire [31:0] cache_address;
-  wire [63:0] cache_write_data;
-  wire [63:0] cache_read_data;
+  wire [511:0] cache_write_data;
+  wire [511:0] cache_read_data;
   wire        cache_ready;
   wire        cache_request;
   wire [31:0] cache_ram_address;
+  wire [31:0] evicted_address;
 
   // Signals between Cache and RAM
   wire        ram_ready;
-  wire [63:0] ram_data_out;
+  wire [511:0] ram_data;
   wire        ram_req;
   wire [31:0] ram_address;
 
@@ -49,7 +51,7 @@ module top_level(
     .cache_write(cache_write), // instructions to cache
 
     .ram_address(ram_address),
-    .ram_req(ram_request), // instructions to RAM
+    .ram_req(ram_req), // instructions to RAM
 
     .cpu_read_data(cpu_read_data),
     .done(done_signal) // outputs
@@ -85,7 +87,5 @@ module top_level(
     .ready(ram_ready)
   );
 
-  // CPU read data output
-  assign cpu_read_data = cache_read_data;
 
 endmodule
